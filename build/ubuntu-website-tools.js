@@ -415,6 +415,6 @@ export function addUbuntuTools(server, connections) {
         from: z.string().optional().describe('Source IP address or network'),
         sudo: z.boolean().optional().default(true).describe('Whether to run the command with sudo (default: true)')
     }, async (args) => ubuntuToolHandlers.ubuntu_ufw_firewall(args));
-    console.log("Ubuntu website management tools loaded");
+    console.error("Ubuntu website management tools loaded");
 }
 //# sourceMappingURL=ubuntu-website-tools.js.map

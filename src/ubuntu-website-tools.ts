@@ -514,5 +514,5 @@ export function addUbuntuTools(server: McpServer, connections: Map<string, { con
     async (args) => ubuntuToolHandlers.ubuntu_ufw_firewall(args)
   );
 
-  console.log("Ubuntu website management tools loaded");
+  console.error("Ubuntu website management tools loaded");
 }

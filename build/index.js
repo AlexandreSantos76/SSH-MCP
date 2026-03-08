@@ -15,7 +15,21 @@ import * as os from "os";
 import * as dotenv from "dotenv";
 import { addUbuntuTools } from "./ubuntu-website-tools.js";
 // Load environment variables from .env file if present
-dotenv.config();
+// Silence ALL output to prevent breaking JSON-RPC
+const originalStdoutWrite = process.stdout.write;
+const originalConsoleLog = console.log;
+const originalConsoleInfo = console.info;
+process.stdout.write = () => true;
+console.log = () => { };
+console.info = () => { };
+try {
+    dotenv.config();
+}
+finally {
+    process.stdout.write = originalStdoutWrite;
+    console.log = originalConsoleLog;
+    console.info = originalConsoleInfo;
+}
 class SSHMCPServer {
     constructor() {
         this.connections = new Map();
