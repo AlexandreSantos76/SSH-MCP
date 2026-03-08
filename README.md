@@ -1,8 +1,8 @@
-# MCP SSH Server
+# MCP SSH Server (SDK v1.5.x Fork)
+
+> **Nota:** Este repositório é um *fork* atualizado do projeto original. Ele foi modernizado para utilizar o novo ecossistema do **Model Context Protocol (MCP) v1.5.0** substituindo classes obsoletas por `McpServer` e adotando a validação segura das interações com `Zod`.
 
 A Model Context Protocol (MCP) server that provides comprehensive SSH and serial console access to remote servers and network devices. Enables AI tools like Claude Desktop to securely manage Linux servers, network switches, and infrastructure devices through both network SSH connections and direct USB-to-Serial console access.
-
-## Features
 
 ### Core SSH Capabilities
 - SSH connection management with password or key-based authentication
