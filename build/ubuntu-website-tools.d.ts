@@ -6,15 +6,13 @@
  * Nginx, system packages, SSL certificates, website deployments, and firewalls
  * on Ubuntu servers.
  */
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from "ssh2";
-type ToolHandler = (params: any) => Promise<any>;
-export declare const ubuntuToolHandlers: Record<string, ToolHandler>;
+export declare const ubuntuToolHandlers: Record<string, (params: any) => Promise<any>>;
 /**
  * Add Ubuntu website management tools to the MCP SSH server
  */
-export declare function addUbuntuTools(server: Server, connections: Map<string, {
+export declare function addUbuntuTools(server: McpServer, connections: Map<string, {
     conn: Client;
     config: any;
 }>): void;
-export {};

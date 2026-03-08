@@ -5,7 +5,8 @@
  * management to SSH-based management on network switches.
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import { Client } from 'ssh2';
 import { serialConnectionToolHandlers } from './serial-connection-tools.js';
 import { sshSetupToolHandlers, validateNetworkConfig, SSHConfigTemplates, replaceTemplateVariables } from './ssh-setup-tools.js';
@@ -290,98 +291,42 @@ To proceed, set confirmTransition=true`
   }
 };
 
-// Tool schema definitions
-const consoleTransitionToolSchemas = {
-  console_to_ssh_transition: {
-    description: 'Complete workflow to transition a network switch from console-only to SSH management',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        port: {
-          type: 'string',
-          description: 'Serial port (e.g., COM3, /dev/ttyUSB0)'
-        },
-        hostname: {
-          type: 'string',
-          description: 'Switch hostname to configure'
-        },
-        ip_address: {
-          type: 'string',
-          description: 'Management IP address for SSH'
-        },
-        subnet_mask: {
-          type: 'string',
-          description: 'Subnet mask (default: 255.255.255.0)'
-        },
-        gateway: {
-          type: 'string',
-          description: 'Default gateway IP'
-        },
-        username: {
-          type: 'string',
-          description: 'SSH username to create'
-        },
-        password: {
-          type: 'string',
-          description: 'SSH password'
-        },
-        enable_password: {
-          type: 'string',
-          description: 'Enable password (optional, defaults to SSH password)'
-        },
-        deviceType: {
-          type: 'string',
-          description: 'Device type: cisco or aruba (auto-detected if not specified)'
-        },
-        securityLevel: {
-          type: 'string',
-          description: 'Security level: basic or secure (default: basic)'
-        },
-        baudRate: {
-          type: 'number',
-          description: 'Serial baud rate (default: 9600)'
-        },
-        confirmTransition: {
-          type: 'boolean',
-          description: 'Confirm to proceed with transition (required for safety)'
-        }
-      },
-      required: ['port', 'hostname', 'ip_address', 'gateway', 'username', 'password']
-    }
-  },
-  quick_ssh_check: {
-    description: 'Quick check of SSH status on a switch via serial connection',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        port: {
-          type: 'string',
-          description: 'Serial port (e.g., COM3, /dev/ttyUSB0)'
-        },
-        baudRate: {
-          type: 'number',
-          description: 'Serial baud rate (default: 9600)'
-        },
-        enablePassword: {
-          type: 'string',
-          description: 'Enable password (if required)'
-        }
-      },
-      required: ['port']
-    }
-  }
-};
-
 /**
  * Add console transition tools to the MCP SSH server
  */
-export function addConsoleTransitionTools(server: Server, serialConnections: Map<string, any>) {
+export function addConsoleTransitionTools(server: McpServer, serialConnections: Map<string, any>) {
   serialConnectionMap = serialConnections;
 
   console.error("Console transition tools loaded");
 
-  return {
-    toolHandlers: consoleTransitionToolHandlers,
-    toolSchemas: consoleTransitionToolSchemas
-  };
+  server.tool(
+    'console_to_ssh_transition',
+    'Complete workflow to transition a network switch from console-only to SSH management',
+    {
+      port: z.string().describe('Serial port (e.g., COM3, /dev/ttyUSB0)'),
+      hostname: z.string().describe('Switch hostname to configure'),
+      ip_address: z.string().describe('Management IP address for SSH'),
+      subnet_mask: z.string().optional().describe('Subnet mask (default: 255.255.255.0)'),
+      gateway: z.string().describe('Default gateway IP'),
+      username: z.string().describe('SSH username to create'),
+      password: z.string().describe('SSH password'),
+      enable_password: z.string().optional().describe('Enable password (optional, defaults to SSH password)'),
+      deviceType: z.string().optional().describe('Device type: cisco or aruba (auto-detected if not specified)'),
+      securityLevel: z.string().optional().describe('Security level: basic or secure (default: basic)'),
+      baudRate: z.number().optional().describe('Serial baud rate (default: 9600)'),
+      confirmTransition: z.boolean().optional().describe('Confirm to proceed with transition (required for safety)')
+    },
+    async (args) => consoleTransitionToolHandlers.console_to_ssh_transition(args)
+  );
+
+  server.tool(
+    'quick_ssh_check',
+    'Quick check of SSH status on a switch via serial connection',
+    {
+      port: z.string().describe('Serial port (e.g., COM3, /dev/ttyUSB0)'),
+      baudRate: z.number().optional().describe('Serial baud rate (default: 9600)'),
+      enablePassword: z.string().optional().describe('Enable password (if required)')
+    },
+    async (args) => consoleTransitionToolHandlers.quick_ssh_check(args)
+  );
 }

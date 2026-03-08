@@ -5,161 +5,26 @@
  * A Model Context Protocol (MCP) server that provides SSH access to remote servers.
  * This allows AI tools like Claude or VS Code to securely connect to your VPS.
  */
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import { Client } from "ssh2";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as dotenv from "dotenv";
-import { addUbuntuTools, ubuntuToolHandlers } from "./ubuntu-website-tools.js";
+import { addUbuntuTools } from "./ubuntu-website-tools.js";
 // Load environment variables from .env file if present
 dotenv.config();
 class SSHMCPServer {
     constructor() {
         this.connections = new Map();
-        this.server = new Server({
+        this.server = new McpServer({
             name: "MCP SSH Server",
             version: "1.0.0"
         }, {
             capabilities: {
-                tools: {
-                    ssh_connect: {
-                        description: "Connect to a remote server via SSH",
-                        inputSchema: {
-                            type: "object",
-                            properties: {
-                                host: {
-                                    type: "string",
-                                    description: "Hostname or IP address of the remote server"
-                                },
-                                port: {
-                                    type: "number",
-                                    description: "SSH port (default: 22)"
-                                },
-                                username: {
-                                    type: "string",
-                                    description: "SSH username"
-                                },
-                                password: {
-                                    type: "string",
-                                    description: "SSH password (if not using key-based authentication)"
-                                },
-                                privateKeyPath: {
-                                    type: "string",
-                                    description: "Path to private key file (if using key-based authentication)"
-                                },
-                                passphrase: {
-                                    type: "string",
-                                    description: "Passphrase for private key (if needed)"
-                                },
-                                connectionId: {
-                                    type: "string",
-                                    description: "Unique identifier for this connection (to reference in future commands)"
-                                }
-                            },
-                            required: ["host", "username"]
-                        }
-                    },
-                    ssh_exec: {
-                        description: "Execute a command on the remote server",
-                        inputSchema: {
-                            type: "object",
-                            properties: {
-                                connectionId: {
-                                    type: "string",
-                                    description: "ID of an active SSH connection"
-                                },
-                                command: {
-                                    type: "string",
-                                    description: "Command to execute"
-                                },
-                                cwd: {
-                                    type: "string",
-                                    description: "Working directory for the command"
-                                },
-                                timeout: {
-                                    type: "number",
-                                    description: "Command timeout in milliseconds"
-                                }
-                            },
-                            required: ["connectionId", "command"]
-                        }
-                    },
-                    ssh_upload_file: {
-                        description: "Upload a file to the remote server",
-                        inputSchema: {
-                            type: "object",
-                            properties: {
-                                connectionId: {
-                                    type: "string",
-                                    description: "ID of an active SSH connection"
-                                },
-                                localPath: {
-                                    type: "string",
-                                    description: "Path to the local file"
-                                },
-                                remotePath: {
-                                    type: "string",
-                                    description: "Path where the file should be saved on the remote server"
-                                }
-                            },
-                            required: ["connectionId", "localPath", "remotePath"]
-                        }
-                    },
-                    ssh_download_file: {
-                        description: "Download a file from the remote server",
-                        inputSchema: {
-                            type: "object",
-                            properties: {
-                                connectionId: {
-                                    type: "string",
-                                    description: "ID of an active SSH connection"
-                                },
-                                remotePath: {
-                                    type: "string",
-                                    description: "Path to the file on the remote server"
-                                },
-                                localPath: {
-                                    type: "string",
-                                    description: "Path where the file should be saved locally"
-                                }
-                            },
-                            required: ["connectionId", "remotePath", "localPath"]
-                        }
-                    },
-                    ssh_list_files: {
-                        description: "List files in a directory on the remote server",
-                        inputSchema: {
-                            type: "object",
-                            properties: {
-                                connectionId: {
-                                    type: "string",
-                                    description: "ID of an active SSH connection"
-                                },
-                                remotePath: {
-                                    type: "string",
-                                    description: "Path to the directory on the remote server"
-                                }
-                            },
-                            required: ["connectionId", "remotePath"]
-                        }
-                    },
-                    ssh_disconnect: {
-                        description: "Close an SSH connection",
-                        inputSchema: {
-                            type: "object",
-                            properties: {
-                                connectionId: {
-                                    type: "string",
-                                    description: "ID of an active SSH connection"
-                                }
-                            },
-                            required: ["connectionId"]
-                        }
-                    }
-                }
+                tools: {}
             }
         });
         this.setupHandlers();
@@ -167,119 +32,44 @@ class SSHMCPServer {
         addUbuntuTools(this.server, this.connections);
     }
     setupHandlers() {
-        // Register tool list handler
-        this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-            tools: [
-                {
-                    name: 'ssh_connect',
-                    description: 'Connect to a remote server via SSH',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            host: { type: 'string', description: 'Hostname or IP address of the remote server' },
-                            port: { type: 'number', description: 'SSH port (default: 22)' },
-                            username: { type: 'string', description: 'SSH username' },
-                            password: { type: 'string', description: 'SSH password (if not using key-based authentication)' },
-                            privateKeyPath: { type: 'string', description: 'Path to private key file (if using key-based authentication)' },
-                            passphrase: { type: 'string', description: 'Passphrase for private key (if needed)' },
-                            connectionId: { type: 'string', description: 'Unique identifier for this connection' }
-                        },
-                        required: ['host', 'username']
-                    }
-                },
-                {
-                    name: 'ssh_exec',
-                    description: 'Execute a command on the remote server',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            connectionId: { type: 'string', description: 'ID of an active SSH connection' },
-                            command: { type: 'string', description: 'Command to execute' },
-                            cwd: { type: 'string', description: 'Working directory for the command' },
-                            timeout: { type: 'number', description: 'Command timeout in milliseconds' }
-                        },
-                        required: ['connectionId', 'command']
-                    }
-                },
-                {
-                    name: 'ssh_upload_file',
-                    description: 'Upload a file to the remote server',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            connectionId: { type: 'string', description: 'ID of an active SSH connection' },
-                            localPath: { type: 'string', description: 'Path to the local file' },
-                            remotePath: { type: 'string', description: 'Path where the file should be saved on the remote server' }
-                        },
-                        required: ['connectionId', 'localPath', 'remotePath']
-                    }
-                },
-                {
-                    name: 'ssh_download_file',
-                    description: 'Download a file from the remote server',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            connectionId: { type: 'string', description: 'ID of an active SSH connection' },
-                            remotePath: { type: 'string', description: 'Path to the file on the remote server' },
-                            localPath: { type: 'string', description: 'Path where the file should be saved locally' }
-                        },
-                        required: ['connectionId', 'remotePath', 'localPath']
-                    }
-                },
-                {
-                    name: 'ssh_list_files',
-                    description: 'List files in a directory on the remote server',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            connectionId: { type: 'string', description: 'ID of an active SSH connection' },
-                            remotePath: { type: 'string', description: 'Path to the directory on the remote server' }
-                        },
-                        required: ['connectionId', 'remotePath']
-                    }
-                },
-                {
-                    name: 'ssh_disconnect',
-                    description: 'Close an SSH connection',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            connectionId: { type: 'string', description: 'ID of an active SSH connection' }
-                        },
-                        required: ['connectionId']
-                    }
-                }
-            ]
-        }));
-        // Register tool call handler
-        this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-            const toolName = request.params.name;
-            // Handle core SSH tools directly
-            if (toolName.startsWith('ssh_')) {
-                switch (toolName) {
-                    case 'ssh_connect':
-                        return this.handleSSHConnect(request.params.arguments);
-                    case 'ssh_exec':
-                        return this.handleSSHExec(request.params.arguments);
-                    case 'ssh_upload_file':
-                        return this.handleSSHUpload(request.params.arguments);
-                    case 'ssh_download_file':
-                        return this.handleSSHDownload(request.params.arguments);
-                    case 'ssh_list_files':
-                        return this.handleSSHListFiles(request.params.arguments);
-                    case 'ssh_disconnect':
-                        return this.handleSSHDisconnect(request.params.arguments);
-                    default:
-                        throw new Error(`Unknown SSH tool: ${toolName}`);
-                }
-            }
-            // Handle Ubuntu tools directly
-            if (toolName.startsWith('ubuntu_') && ubuntuToolHandlers[toolName]) {
-                return ubuntuToolHandlers[toolName](request.params.arguments);
-            }
-            throw new Error(`Unknown tool: ${toolName}`);
-        });
+        // Register tool 'ssh_connect'
+        this.server.tool('ssh_connect', 'Connect to a remote server via SSH', {
+            host: z.string().describe('Hostname or IP address of the remote server'),
+            port: z.number().optional().describe('SSH port (default: 22)'),
+            username: z.string().describe('SSH username'),
+            password: z.string().optional().describe('SSH password (if not using key-based authentication)'),
+            privateKeyPath: z.string().optional().describe('Path to private key file (if using key-based authentication)'),
+            passphrase: z.string().optional().describe('Passphrase for private key (if needed)'),
+            connectionId: z.string().optional().describe('Unique identifier for this connection')
+        }, async (args) => this.handleSSHConnect(args));
+        // Register tool 'ssh_exec'
+        this.server.tool('ssh_exec', 'Execute a command on the remote server', {
+            connectionId: z.string().describe('ID of an active SSH connection'),
+            command: z.string().describe('Command to execute'),
+            cwd: z.string().optional().describe('Working directory for the command'),
+            timeout: z.number().optional().describe('Command timeout in milliseconds')
+        }, async (args) => this.handleSSHExec(args));
+        // Register tool 'ssh_upload_file'
+        this.server.tool('ssh_upload_file', 'Upload a file to the remote server', {
+            connectionId: z.string().describe('ID of an active SSH connection'),
+            localPath: z.string().describe('Path to the local file'),
+            remotePath: z.string().describe('Path where the file should be saved on the remote server')
+        }, async (args) => this.handleSSHUpload(args));
+        // Register tool 'ssh_download_file'
+        this.server.tool('ssh_download_file', 'Download a file from the remote server', {
+            connectionId: z.string().describe('ID of an active SSH connection'),
+            remotePath: z.string().describe('Path to the file on the remote server'),
+            localPath: z.string().describe('Path where the file should be saved locally')
+        }, async (args) => this.handleSSHDownload(args));
+        // Register tool 'ssh_list_files'
+        this.server.tool('ssh_list_files', 'List files in a directory on the remote server', {
+            connectionId: z.string().describe('ID of an active SSH connection'),
+            remotePath: z.string().describe('Path to the directory on the remote server')
+        }, async (args) => this.handleSSHListFiles(args));
+        // Register tool 'ssh_disconnect'
+        this.server.tool('ssh_disconnect', 'Close an SSH connection', {
+            connectionId: z.string().describe('ID of an active SSH connection')
+        }, async (args) => this.handleSSHDisconnect(args));
     }
     async handleSSHConnect(params) {
         const { host, port = 22, username, password, privateKeyPath, passphrase, connectionId = `ssh-${Date.now()}` } = params;

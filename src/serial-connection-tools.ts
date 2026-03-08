@@ -5,7 +5,8 @@
  * that don't have SSH enabled or for initial configuration.
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from '@serialport/parser-readline';
 
@@ -112,11 +113,11 @@ class RealSerialPort {
   private hasCompleteResponse(): boolean {
     // Check if buffer ends with a known prompt
     return PROMPT_PATTERNS.user.test(this.buffer) ||
-           PROMPT_PATTERNS.enable.test(this.buffer) ||
-           PROMPT_PATTERNS.config.test(this.buffer) ||
-           PROMPT_PATTERNS.password.test(this.buffer) ||
-           PROMPT_PATTERNS.morePrompt.test(this.buffer) ||
-           PROMPT_PATTERNS.confirm.test(this.buffer);
+      PROMPT_PATTERNS.enable.test(this.buffer) ||
+      PROMPT_PATTERNS.config.test(this.buffer) ||
+      PROMPT_PATTERNS.password.test(this.buffer) ||
+      PROMPT_PATTERNS.morePrompt.test(this.buffer) ||
+      PROMPT_PATTERNS.confirm.test(this.buffer);
   }
 
   async open(): Promise<void> {
@@ -229,8 +230,8 @@ class RealSerialPort {
 
       // Check if we got a command prompt (response complete)
       if (PROMPT_PATTERNS.user.test(response) ||
-          PROMPT_PATTERNS.enable.test(response) ||
-          PROMPT_PATTERNS.config.test(response)) {
+        PROMPT_PATTERNS.enable.test(response) ||
+        PROMPT_PATTERNS.config.test(response)) {
         break;
       }
     }
@@ -751,8 +752,8 @@ export const serialConnectionToolHandlers: Record<string, ToolHandler> = {
 
         // Check if we got a command prompt (response complete)
         if (PROMPT_PATTERNS.user.test(response) ||
-            PROMPT_PATTERNS.enable.test(response) ||
-            PROMPT_PATTERNS.config.test(response)) {
+          PROMPT_PATTERNS.enable.test(response) ||
+          PROMPT_PATTERNS.config.test(response)) {
           break;
         }
       }
@@ -777,198 +778,115 @@ export const serialConnectionToolHandlers: Record<string, ToolHandler> = {
 };
 
 // Tool schema definitions for serial connection tools
-const serialConnectionToolSchemas = {
-  serial_list_ports: {
-    description: 'List available USB-to-Serial ports on the system',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      required: []
-    }
-  },
-  serial_connect: {
-    description: 'Connect to a network device via USB-to-Serial console port',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        port: {
-          type: 'string',
-          description: 'Serial port name (e.g., COM3, /dev/ttyUSB0)'
-        },
-        baudRate: {
-          type: 'number',
-          description: 'Baud rate (default: 9600)'
-        },
-        dataBits: {
-          type: 'number',
-          description: 'Data bits (default: 8)'
-        },
-        stopBits: {
-          type: 'number',
-          description: 'Stop bits (default: 1)'
-        },
-        parity: {
-          type: 'string',
-          description: 'Parity (none, even, odd, mark, space - default: none)'
-        },
-        flowControl: {
-          type: 'boolean',
-          description: 'Enable flow control (default: false)'
-        },
-        timeout: {
-          type: 'number',
-          description: 'Connection timeout in milliseconds (default: 30000)'
-        },
-        connectionId: {
-          type: 'string',
-          description: 'Unique identifier for this connection'
-        },
-        deviceType: {
-          type: 'string',
-          description: 'Device type for optimal settings (cisco, aruba, generic)'
-        }
-      },
-      required: ['port']
-    }
-  },
-  serial_send_command: {
-    description: 'Send a command to network device via serial connection',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        connectionId: {
-          type: 'string',
-          description: 'ID of an active serial connection'
-        },
-        command: {
-          type: 'string',
-          description: 'Command to send to the device'
-        },
-        waitForResponse: {
-          type: 'boolean',
-          description: 'Wait for device response (default: true)'
-        },
-        timeout: {
-          type: 'number',
-          description: 'Response timeout in milliseconds (default: 10000)'
-        }
-      },
-      required: ['connectionId', 'command']
-    }
-  },
-  serial_enter_enable: {
-    description: 'Enter privileged (enable) mode on the switch',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        connectionId: {
-          type: 'string',
-          description: 'ID of an active serial connection'
-        },
-        enablePassword: {
-          type: 'string',
-          description: 'Enable password (if required)'
-        }
-      },
-      required: ['connectionId']
-    }
-  },
-  serial_enter_config: {
-    description: 'Enter configuration mode on the switch (must be in enable mode)',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        connectionId: {
-          type: 'string',
-          description: 'ID of an active serial connection'
-        }
-      },
-      required: ['connectionId']
-    }
-  },
-  serial_exit_mode: {
-    description: 'Exit current mode (config -> enable -> user)',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        connectionId: {
-          type: 'string',
-          description: 'ID of an active serial connection'
-        }
-      },
-      required: ['connectionId']
-    }
-  },
-  serial_discover_device: {
-    description: 'Discover device type and capabilities via serial connection',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        connectionId: {
-          type: 'string',
-          description: 'ID of an active serial connection'
-        }
-      },
-      required: ['connectionId']
-    }
-  },
-  serial_list_connections: {
-    description: 'List all active serial connections',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      required: []
-    }
-  },
-  serial_disconnect: {
-    description: 'Disconnect from a serial port',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        connectionId: {
-          type: 'string',
-          description: 'ID of an active serial connection'
-        }
-      },
-      required: ['connectionId']
-    }
-  },
-  serial_send_interactive: {
-    description: 'Send command with automatic handling of confirmations and paging',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        connectionId: {
-          type: 'string',
-          description: 'ID of an active serial connection'
-        },
-        command: {
-          type: 'string',
-          description: 'Command to send'
-        },
-        confirmResponse: {
-          type: 'string',
-          description: 'Response to confirmation prompts (default: yes)'
-        },
-        timeout: {
-          type: 'number',
-          description: 'Total timeout in milliseconds (default: 30000)'
-        }
-      },
-      required: ['connectionId', 'command']
-    }
-  }
-};
-
 /**
  * Add serial connection tools to the MCP SSH server
  */
-export function addSerialConnectionTools(server: Server) {
+export function addSerialConnectionTools(server: McpServer) {
   console.error("Serial connection tools loaded (real serialport implementation)");
+
+  server.tool(
+    'serial_list_ports',
+    'List available USB-to-Serial ports on the system',
+    {},
+    async (args) => serialConnectionToolHandlers.serial_list_ports(args)
+  );
+
+  server.tool(
+    'serial_connect',
+    'Connect to a network device via USB-to-Serial console port',
+    {
+      port: z.string().describe('Serial port name (e.g., COM3, /dev/ttyUSB0)'),
+      baudRate: z.number().optional().describe('Baud rate (default: 9600)'),
+      dataBits: z.number().optional().describe('Data bits (default: 8)'),
+      stopBits: z.number().optional().describe('Stop bits (default: 1)'),
+      parity: z.string().optional().describe('Parity (none, even, odd, mark, space - default: none)'),
+      flowControl: z.boolean().optional().describe('Enable flow control (default: false)'),
+      timeout: z.number().optional().describe('Connection timeout in milliseconds (default: 30000)'),
+      connectionId: z.string().optional().describe('Unique identifier for this connection'),
+      deviceType: z.string().optional().describe('Device type for optimal settings (cisco, aruba, generic)')
+    },
+    async (args) => serialConnectionToolHandlers.serial_connect(args)
+  );
+
+  server.tool(
+    'serial_send_command',
+    'Send a command to network device via serial connection',
+    {
+      connectionId: z.string().describe('ID of an active serial connection'),
+      command: z.string().describe('Command to send to the device'),
+      waitForResponse: z.boolean().optional().describe('Wait for device response (default: true)'),
+      timeout: z.number().optional().describe('Response timeout in milliseconds (default: 10000)')
+    },
+    async (args) => serialConnectionToolHandlers.serial_send_command(args)
+  );
+
+  server.tool(
+    'serial_enter_enable',
+    'Enter privileged (enable) mode on the switch',
+    {
+      connectionId: z.string().describe('ID of an active serial connection'),
+      enablePassword: z.string().optional().describe('Enable password (if required)')
+    },
+    async (args) => serialConnectionToolHandlers.serial_enter_enable(args)
+  );
+
+  server.tool(
+    'serial_enter_config',
+    'Enter configuration mode on the switch (must be in enable mode)',
+    {
+      connectionId: z.string().describe('ID of an active serial connection')
+    },
+    async (args) => serialConnectionToolHandlers.serial_enter_config(args)
+  );
+
+  server.tool(
+    'serial_exit_mode',
+    'Exit current mode (config -> enable -> user)',
+    {
+      connectionId: z.string().describe('ID of an active serial connection')
+    },
+    async (args) => serialConnectionToolHandlers.serial_exit_mode(args)
+  );
+
+  server.tool(
+    'serial_discover_device',
+    'Discover device type and capabilities via serial connection',
+    {
+      connectionId: z.string().describe('ID of an active serial connection')
+    },
+    async (args) => serialConnectionToolHandlers.serial_discover_device(args)
+  );
+
+  server.tool(
+    'serial_list_connections',
+    'List all active serial connections',
+    {},
+    async (args) => serialConnectionToolHandlers.serial_list_connections(args)
+  );
+
+  server.tool(
+    'serial_disconnect',
+    'Disconnect from a serial port',
+    {
+      connectionId: z.string().describe('ID of an active serial connection')
+    },
+    async (args) => serialConnectionToolHandlers.serial_disconnect(args)
+  );
+
+  server.tool(
+    'serial_send_interactive',
+    'Send command with automatic handling of confirmations and paging',
+    {
+      connectionId: z.string().describe('ID of an active serial connection'),
+      command: z.string().describe('Command to send'),
+      confirmResponse: z.string().optional().describe('Response to confirmation prompts (default: yes)'),
+      timeout: z.number().optional().describe('Total timeout in milliseconds (default: 30000)')
+    },
+    async (args) => serialConnectionToolHandlers.serial_send_interactive(args)
+  );
 
   return {
     toolHandlers: serialConnectionToolHandlers,
-    toolSchemas: serialConnectionToolSchemas,
     getSerialConnections: () => serialConnections
   };
 }
